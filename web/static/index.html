@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>QuadLingo 🇰🇿 — Изучай қазақша!</title>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: system-ui; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .lesson-card { border: 1px solid #ccc; border-radius: 12px; padding: 20px; margin: 10px 0; cursor: pointer; }
+        .lesson-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        #lessons { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        button { background: #007bff; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>🚀 QuadLingo — Изучай қазақ тілін!</h1>
+    <div id="auth">
+        <input id="username" placeholder="Логин" value="admin">
+        <input id="password" type="password" placeholder="Пароль" value="admin2025">
+        <button onclick="login()">Войти</button>
+    </div>
+    <div id="lessons" style="display:none;"></div>
+    <div id="profile" style="display:none;"></div>
+
+    <script>
+        const API_BASE = 'http://localhost:8080';
+        let token = localStorage.getItem('token');
+
+        if (token) {
+            loadLessons();
+            loadProfile();
+        }
+
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            const res = await fetch(`${API_BASE}/login`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username, password})
+            });
+            
+            if (res.ok) {
+                const data = await res.json();
+                token = data.token;
+                localStorage.setItem('token', token);
+                document.getElementById('auth').style.display = 'none';
+                loadLessons();
+                loadProfile();
+            }
+        }
+
+        async function loadLessons() {
+            const res = await fetch(`${API_BASE}/lessons`);
+            const lessons = await res.json();
+            document.getElementById('lessons').innerHTML = lessons.map(l => `
+                <div class="lesson-card">
+                    <h3>${l.title}</h3>
+                    <p>${l.description}</p>
+                    <small>Порядок: ${l.order} | ${new Date(l.created_at).toLocaleDateString('kk-KZ')}</small>
+                </div>
+            `).join('');
+            document.getElementById('lessons').style.display = 'grid';
+        }
+
+        async function loadProfile() {
+            const res = await fetch(`${API_BASE}/api/profile`, {
+                headers: {Authorization: `Bearer ${token}`}
+            });
+            const data = await res.json();
+            document.getElementById('profile').innerHTML = `
+                <h2>Профиль: ${data.user.username} (${data.user.role})</h2>
+                <p>Очки: ${data.user.points}</p>
+            `;
+            document.getElementById('profile').style.display = 'block';
+        }
+    </script>
+</body>
+</html>

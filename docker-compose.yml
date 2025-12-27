@@ -1,6 +1,19 @@
 version: '3.9'
-
 services:
+  api:
+    build: .
+    container_name: quadlingo-api
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      - DB_HOST=postgres
+      - REDIS_HOST=redis
+    volumes:
+      - .:/app  # hot reload для dev
+
   postgres:
     image: postgres:16
     container_name: quadlingo-postgres
@@ -8,12 +21,10 @@ services:
       POSTGRES_DB: quadlingo
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: 7983
-      POSTGRES_HOST_AUTH_METHOD: md5
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -21,7 +32,6 @@ services:
     ports:
       - "6379:6379"
     command: redis-server --appendonly yes
-    restart: unless-stopped
 
 volumes:
   postgres_data:

@@ -12,7 +12,7 @@ import (
 )
 
 func Register(req models.RegisterRequest, cfg *config.Config) (*models.AuthResponse, error) {
-	// Проверяем, есть ли уже пользователи
+	// Проверяем, есть ли уже пользователи (первый становится админом)
 	var count int
 	err := repository.DB.QueryRow(context.Background(), "SELECT COUNT(*) FROM users").Scan(&count)
 	if err != nil {
@@ -22,7 +22,7 @@ func Register(req models.RegisterRequest, cfg *config.Config) (*models.AuthRespo
 	role := models.RoleUser
 	if count == 0 {
 		role = models.RoleAdmin
-		log.Println("First user registered — granted ADMIN role!")
+		log.Println("Первый пользователь зарегистрирован — роль ADMIN!")
 	}
 
 	passwordHash, err := utils.HashPassword(req.Password)
@@ -39,12 +39,12 @@ func Register(req models.RegisterRequest, cfg *config.Config) (*models.AuthRespo
 	}
 
 	query := `INSERT INTO users (username, email, password_hash, role, points) 
-              VALUES ($1, $2, $3, $4, $5) RETURNING id, created_at, updated_at`
+              VALUES ($1, $2, $3, $4, $5) RETURNING id`
 
 	err = repository.DB.QueryRow(context.Background(), query, user.Username, user.Email, user.PasswordHash, user.Role, user.Points).
-		Scan(&user.ID, &user.CreatedAt, &user.UpdatedAt)
+		Scan(&user.ID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ошибка создания пользователя: %w", err)
 	}
 
 	token, err := utils.GenerateJWT(user.ID, string(user.Role), cfg)
@@ -60,17 +60,17 @@ func Register(req models.RegisterRequest, cfg *config.Config) (*models.AuthRespo
 
 func Login(req models.LoginRequest, cfg *config.Config) (*models.AuthResponse, error) {
 	var user models.User
-	query := `SELECT id, username, email, password_hash, role, points, created_at, updated_at 
-              FROM users WHERE username = $1 OR email = $1`
+	query := `SELECT id, username, email, password_hash, role, points 
+              FROM users WHERE username = $1`
 
-	err := repository.DB.QueryRow(context.Background(), query, req.UsernameOrEmail).Scan(
-		&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.Role, &user.Points, &user.CreatedAt, &user.UpdatedAt)
+	err := repository.DB.QueryRow(context.Background(), query, req.Username).Scan(
+		&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.Role, &user.Points)
 	if err != nil {
-		return nil, err // пользователь не найден или ошибка
+		return nil, fmt.Errorf("неверное имя пользователя или пароль")
 	}
 
 	if !utils.CheckPasswordHash(req.Password, user.PasswordHash) {
-		return nil, fmt.Errorf("invalid password")
+		return nil, fmt.Errorf("неверное имя пользователя или пароль")
 	}
 
 	token, err := utils.GenerateJWT(user.ID, string(user.Role), cfg)

@@ -13,7 +13,7 @@ func CreateLesson(lesson models.Lesson, userID int) (models.Lesson, error) {
 }
 
 func GetAllLessons() ([]models.Lesson, error) {
-	return repository.GetAllLessons()
+	return repository.GetCachedLessons()
 }
 
 func GetLessonByID(id int) (models.Lesson, error) {

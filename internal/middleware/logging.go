@@ -7,21 +7,39 @@ import (
 	"go.uber.org/zap"
 )
 
-func LoggingMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			start := time.Now()
+var logger *zap.Logger // глобальный логгер (инициализируем в main.go)
 
-			next.ServeHTTP(w, r)
+func InitLogger(l *zap.Logger) {
+	logger = l
+}
 
-			duration := time.Since(start)
-			logger.Info("HTTP request",
-				zap.String("method", r.Method),
-				zap.String("path", r.URL.Path),
-				zap.String("remote_addr", r.RemoteAddr),
-				zap.Int("status", w.(interface{ Status() int }).Status()),
-				zap.Duration("duration", duration),
-			)
-		})
-	}
+func LoggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+
+		// Оборачиваем ResponseWriter для получения статус-кода
+		lrw := &loggingResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+		next.ServeHTTP(lrw, r)
+
+		duration := time.Since(start)
+
+		logger.Info("HTTP запрос",
+			zap.String("method", r.Method),
+			zap.String("path", r.URL.Path),
+			zap.String("remote_addr", r.RemoteAddr),
+			zap.Int("status", lrw.statusCode),
+			zap.Duration("duration", duration),
+		)
+	})
+}
+
+// Вспомогательная структура для захвата статус-кода
+type loggingResponseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (lrw *loggingResponseWriter) WriteHeader(code int) {
+	lrw.statusCode = code
+	lrw.ResponseWriter.WriteHeader(code)
 }
