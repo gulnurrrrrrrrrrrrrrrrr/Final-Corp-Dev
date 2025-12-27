@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+    <meta charset="UTF-8">
+    <title>Профиль — QuadLingo</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>Профиль</h1>
+        <nav>
+            <a href="index.html">← Басты бет</a>
+        </nav>
+    </header>
+
+    <div class="container">
+        <div class="card profile-info" id="profile"></div>
+    </div>
+
+    <script>
+        const API = 'http://localhost:8080';
+        const token = localStorage.getItem('token');
+
+        async function loadProfile() {
+            const res = await fetch(API + '/api/profile', {
+                headers: {Authorization: `Bearer ${token}`}
+            });
+            const data = await res.json();
+            const roleText = data.user.role === 'admin' ? 'Администратор' : 
+                             data.user.role === 'manager' ? 'Менеджер' : 'Оқушы';
+            document.getElementById('profile').innerHTML = `
+                <h2>Сәлем, ${data.user.username}!</h2>
+                <p><strong>Рөл:</strong> ${roleText}</p>
+                <p><strong>Баллдар:</strong> ${data.user.points} 🏆</p>
+                <p><strong>Email:</strong> ${data.user.email}</p>
+                <button onclick="localStorage.removeItem('token'); window.location='index.html'">Шығу</button>
+            `;
+        }
+
+        loadProfile();
+    </script>
+</body>
+</html>

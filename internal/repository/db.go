@@ -2,7 +2,9 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"time"
 
 	"quadlingo/internal/config"
 
@@ -13,17 +15,18 @@ var DB *pgxpool.Pool
 
 func InitDB(cfg *config.Config) error {
 	var err error
-	DB, err = pgxpool.New(context.Background(), cfg.DSN())
-	if err != nil {
-		return err
+	for i := 0; i < 10; i++ {
+		DB, err = pgxpool.New(context.Background(), cfg.DSN())
+		if err == nil {
+			if err = DB.Ping(context.Background()); err == nil {
+				log.Println("Successfully connected to PostgreSQL!")
+				return nil
+			}
+		}
+		log.Printf("Failed to connect to DB (attempt %d/10): %v", i+1, err)
+		time.Sleep(3 * time.Second)
 	}
-
-	if err = DB.Ping(context.Background()); err != nil {
-		return err
-	}
-
-	log.Println("Successfully connected to PostgreSQL!")
-	return nil
+	return fmt.Errorf("failed to connect to database after 10 attempts: %w", err)
 }
 
 func CloseDB() {
@@ -40,6 +43,7 @@ func Migrate() error {
             password_hash VARCHAR(255) NOT NULL,
             role VARCHAR(20) NOT NULL DEFAULT 'user',
             points INTEGER DEFAULT 0,
+			is_active BOOLEAN DEFAULT true,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );`,
@@ -89,4 +93,5 @@ func Migrate() error {
 
 	log.Println("All tables created successfully (migrations applied)!")
 	return nil
+
 }

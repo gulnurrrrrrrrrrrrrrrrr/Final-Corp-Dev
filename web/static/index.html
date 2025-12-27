@@ -1,78 +1,128 @@
 <!DOCTYPE html>
-<html>
+<html lang="kk">
 <head>
-    <title>QuadLingo 🇰🇿 — Изучай қазақша!</title>
     <meta charset="UTF-8">
-    <style>
-        body { font-family: system-ui; max-width: 800px; margin: 0 auto; padding: 20px; }
-        .lesson-card { border: 1px solid #ccc; border-radius: 12px; padding: 20px; margin: 10px 0; cursor: pointer; }
-        .lesson-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        #lessons { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
-        button { background: #007bff; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; }
-    </style>
+    <title>QuadLingo — Қазақ тілі</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>🚀 QuadLingo — Изучай қазақ тілін!</h1>
-    <div id="auth">
-        <input id="username" placeholder="Логин" value="admin">
-        <input id="password" type="password" placeholder="Пароль" value="admin2025">
-        <button onclick="login()">Войти</button>
+    <header>
+        <h1>🚀 QuadLingo — Қазақша үйрен!</h1>
+        <nav id="nav" style="display:none">
+            <a href="index.html">Басты бет</a>
+            <a href="profile.html">Профиль</a>
+            <a href="admin.html" id="adminLink" style="display:none">Админ панель</a>
+            <button onclick="logout()">Шығу</button>
+        </nav>
+    </header>
+
+    <div class="container">
+        <div id="auth" class="card" style="max-width:500px; margin:50px auto">
+            <h2 style="color:#333; text-align:center">Кіру / Тіркеу</h2>
+            <input id="username" placeholder="Логин (мысалы: admin)" value="admin">
+            <input id="email" placeholder="Email (тіркеу үшін)" value="admin@quadlingo.kz">
+            <input id="password" type="password" placeholder="Құпия сөз" value="admin2025">
+            <div style="text-align:center">
+                <button onclick="login()">Кіру</button>
+                <button class="manager" onclick="register()">Тіркеу</button>
+            </div>
+            <p id="authMsg" style="color:red; text-align:center; margin-top:15px"></p>
+        </div>
+
+        <div id="main" style="display:none">
+            <h2 style="color:white; text-align:center">Сәлем, <span id="userName"></span>! (<span id="userRole"></span>)</h2>
+            <h2 style="color:white">Сабақтар</h2>
+            <div id="lessons" class="cards"></div>
+            <p id="noLessons" style="color:white; text-align:center; display:none">Әзірге сабақтар жоқ. Админ немесе менеджер қоссын!</p>
+        </div>
     </div>
-    <div id="lessons" style="display:none;"></div>
-    <div id="profile" style="display:none;"></div>
 
     <script>
-        const API_BASE = 'http://localhost:8080';
+        const API = 'http://localhost:8080';
         let token = localStorage.getItem('token');
 
         if (token) {
-            loadLessons();
+            document.getElementById('auth').style.display = 'none';
+            document.getElementById('main').style.display = 'block';
+            document.getElementById('nav').style.display = 'block';
             loadProfile();
+            loadLessons();
         }
 
         async function login() {
-            const username = document.getElementById('username').value;
+            const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value;
-            
-            const res = await fetch(`${API_BASE}/login`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({username, password})
-            });
-            
-            if (res.ok) {
+            await auth('/login', {username, password});
+        }
+
+        async function register() {
+            const username = document.getElementById('username').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            await auth('/register', {username, email, password});
+        }
+
+        async function auth(endpoint, body) {
+            const msg = document.getElementById('authMsg');
+            try {
+                const res = await fetch(API + endpoint, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(body)
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    localStorage.setItem('token', data.token);
+                    location.reload();
+                } else {
+                    msg.textContent = 'Қате логин немесе пароль';
+                }
+            } catch (err) {
+                msg.textContent = 'Серверге қосылу қатесі';
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            location.reload();
+        }
+
+        async function loadProfile() {
+            try {
+                const res = await fetch(API + '/api/profile', {
+                    headers: {Authorization: `Bearer ${token}`}
+                });
                 const data = await res.json();
-                token = data.token;
-                localStorage.setItem('token', token);
-                document.getElementById('auth').style.display = 'none';
-                loadLessons();
-                loadProfile();
+                document.getElementById('userName').textContent = data.user.username;
+                document.getElementById('userRole').textContent = data.user.role;
+                if (data.user.role === 'admin') {
+                    document.getElementById('adminLink').style.display = 'inline';
+                }
+            } catch (err) {
+                logout();
             }
         }
 
         async function loadLessons() {
-            const res = await fetch(`${API_BASE}/lessons`);
+            const res = await fetch(API + '/lessons');
             const lessons = await res.json();
-            document.getElementById('lessons').innerHTML = lessons.map(l => `
-                <div class="lesson-card">
+            const container = document.getElementById('lessons');
+            const noLessons = document.getElementById('noLessons');
+            if (lessons.length === 0) {
+                noLessons.style.display = 'block';
+                container.innerHTML = '';
+                return;
+            }
+            noLessons.style.display = 'none';
+            container.innerHTML = lessons.map(l => `
+                <div class="card">
                     <h3>${l.title}</h3>
-                    <p>${l.description}</p>
-                    <small>Порядок: ${l.order} | ${new Date(l.created_at).toLocaleDateString('kk-KZ')}</small>
+                    <p>${l.description || ''}</p>
+                    <small>Рет: ${l.order}</small>
+                    <br><br>
+                    <button onclick="window.location.href='lesson.html?id=${l.id}'">Сабақты ашу</button>
                 </div>
             `).join('');
-            document.getElementById('lessons').style.display = 'grid';
-        }
-
-        async function loadProfile() {
-            const res = await fetch(`${API_BASE}/api/profile`, {
-                headers: {Authorization: `Bearer ${token}`}
-            });
-            const data = await res.json();
-            document.getElementById('profile').innerHTML = `
-                <h2>Профиль: ${data.user.username} (${data.user.role})</h2>
-                <p>Очки: ${data.user.points}</p>
-            `;
-            document.getElementById('profile').style.display = 'block';
         }
     </script>
 </body>

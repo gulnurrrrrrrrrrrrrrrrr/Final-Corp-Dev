@@ -11,7 +11,6 @@ import (
 	"quadlingo/internal/repository"
 	"quadlingo/internal/utils"
 
-	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/unrolled/secure"
@@ -74,13 +73,12 @@ func main() {
 	})
 
 	// CSRF защита (используем JWT secret как ключ)
-	csrfMiddleware := csrf.Protect([]byte(cfg.JWTSecret), csrf.Secure(false)) // false для разработки (HTTP)
+	//csrfMiddleware := csrf.Protect([]byte(cfg.JWTSecret), csrf.Secure(false)) // false для разработки (HTTP)
 
 	// Глобальные middleware
 	r.Use(middleware.SecurityHeaders)
 	r.Use(middleware.LoggingMiddleware) // теперь правильный тип
 	r.Use(secureMiddleware.Handler)
-	r.Use(csrfMiddleware)
 
 	// Главная страница
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -115,6 +113,13 @@ func main() {
 	if port == "" {
 		port = "8080"
 	}
+	// Админские маршруты
+	adminRouter := r.PathPrefix("/admin").Subrouter()
+	adminRouter.Use(middleware.AuthMiddleware)
+	adminRouter.Use(middleware.RequireRole("admin"))
+
+	adminRouter.HandleFunc("/users", handlers.GetAllUsersHandler).Methods("GET")
+	adminRouter.HandleFunc("/users/{id}/role", handlers.ChangeUserRoleHandler).Methods("PATCH")
 
 	log.Printf("🚀 QuadLingo сервер запущен на http://localhost:%s", port)
 	log.Printf("   Фронтенд: http://localhost:%s/static/index.html", port)

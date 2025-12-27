@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+    <meta charset="UTF-8">
+    <title>Админ панель — QuadLingo</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>Админ панель</h1>
+        <nav>
+            <a href="index.html">← Басты бет</a>
+            <button onclick="localStorage.removeItem('token'); window.location='index.html'">Шығу</button>
+        </nav>
+    </header>
+
+    <div class="container">
+        <div class="card">
+            <h2 style="color:#333">Пользовательлер тізімі</h2>
+            <div id="users" class="cards"></div>
+            <p id="error" style="color:red; text-align:center; font-weight:bold; margin-top:20px"></p>
+            <p id="loading" style="text-align:center; color:#666">Жүктелуде...</p>
+        </div>
+    </div>
+
+    <script>
+        const API = 'http://localhost:8080';
+        const token = localStorage.getItem('token');
+
+        if (!token) {
+            window.location.href = 'index.html';
+        }
+
+        async function loadUsers() {
+            const loading = document.getElementById('loading');
+            const errorEl = document.getElementById('error');
+            const usersContainer = document.getElementById('users');
+
+            try {
+                const res = await fetch(API + '/admin/users', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!res.ok) {
+                    if (res.status === 403 || res.status === 401) {
+                        errorEl.textContent = 'Рұқсат жоқ! Сіз админ емессіз немесе токен ескірген.';
+                    } else {
+                        errorEl.textContent = `Сервер қатесі: ${res.status}`;
+                    }
+                    loading.style.display = 'none';
+                    return;
+                }
+
+                const users = await res.json();
+                loading.style.display = 'none';
+
+                if (users.length === 0) {
+                    usersContainer.innerHTML = '<p style="text-align:center; color:#666">Пользовательлер жоқ</p>';
+                    return;
+                }
+
+                usersContainer.innerHTML = users.map(u => `
+                    <div class="card">
+                        <h3>${u.username}</h3>
+                        <p><strong>Email:</strong> ${u.email}</p>
+                        <p><strong>Рөл:</strong> <span style="color:#e74c3c;font-weight:bold">${u.role === 'admin' ? 'Админ' : u.role === 'manager' ? 'Менеджер' : 'Оқушы'}</span></p>
+                        <p><strong>Баллдар:</strong> ${u.points} 🏆</p>
+                        <div style="margin-top:15px">
+                            <select id="role-${u.id}" ${u.role === 'admin' ? 'disabled' : ''}>
+                                <option value="user" ${u.role === 'user' ? 'selected' : ''}>user</option>
+                                <option value="manager" ${u.role === 'manager' ? 'selected' : ''}>manager</option>
+                            </select>
+                            <button ${u.role === 'admin' ? 'disabled' : ''} onclick="changeRole(${u.id})" style="margin-left:10px">
+                                Рөлді өзгерту
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+
+            } catch (err) {
+                loading.style.display = 'none';
+                errorEl.textContent = 'Серверге қосылу қатесі. API жұмыс істеп тұр ма?';
+                console.error(err);
+            }
+        }
+
+        async function changeRole(userId) {
+            const select = document.getElementById(`role-${userId}`);
+            const newRole = select.value;
+
+            try {
+                const res = await fetch(API + `/admin/users/${userId}/role`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({new_role: newRole})
+                });
+
+                if (res.ok) {
+                    alert('Рөл сәтті өзгертілді!');
+                    loadUsers(); // обновляем список
+                } else {
+                    alert('Қате: рөлді өзгерту мүмкін емес');
+                }
+            } catch (err) {
+                alert('Сервер қатесі');
+            }
+        }
+
+        loadUsers();
+    </script>
+</body>
+</html>

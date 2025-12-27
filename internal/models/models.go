@@ -19,6 +19,7 @@ type User struct {
 	Points       int       `json:"points" db:"points"`
 	CreatedAt    time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at" db:"updated_at"`
+	IsActive     bool      `json:"is_active" db:"is_active"`
 }
 
 type RegisterRequest struct {
@@ -71,4 +72,16 @@ type TestResult struct {
 	Total        int  `json:"total"`
 	PointsEarned int  `json:"points_earned"`
 	Passed       bool `json:"passed"`
+}
+type UserResponse struct {
+	ID       int    `json:"id"`
+	Username string `json:"username"`
+	Email    string `json:"email"`
+	Role     string `json:"role"`
+	Points   int    `json:"points"`
+	IsActive bool   `json:"is_active"`
+}
+
+type ChangeRoleRequest struct {
+	NewRole string `json:"new_role" validate:"required,oneof=user manager"`
 }

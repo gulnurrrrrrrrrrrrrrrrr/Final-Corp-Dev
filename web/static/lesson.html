@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+    <meta charset="UTF-8">
+    <title>Сабақ — QuadLingo</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>Сабақ</h1>
+        <nav>
+            <a href="index.html">← Басты бет</a>
+            <a href="profile.html">Профиль</a>
+        </nav>
+    </header>
+
+    <div class="container">
+        <div id="lesson" class="card"></div>
+
+        <div id="test" class="card" style="display:none">
+            <h2>Тест</h2>
+            <div id="questions"></div>
+            <button onclick="submitTest()">Тапсыру</button>
+            <div id="result"></div>
+        </div>
+    </div>
+
+    <script>
+        const API = 'http://localhost:8080';
+        const token = localStorage.getItem('token');
+        const lessonId = new URLSearchParams(window.location.search).get('id');
+
+        async function loadLesson() {
+            const res = await fetch(API + '/lessons/' + lessonId);
+            const lesson = await res.json();
+            document.getElementById('lesson').innerHTML = `
+                <h2>${lesson.title}</h2>
+                <p>${lesson.description || ''}</p>
+                <div style="background:#f8f9fa; padding:25px; border-radius:10px; line-height:1.8">
+                    ${lesson.content.replace(/\n/g, '<br>')}
+                </div>
+                <button onclick="startTest()">Тестті бастау</button>
+            `;
+        }
+
+        function startTest() {
+            // Пример теста (можно заменить на реальный из БД)
+            const questions = [
+                {id: 1, text: "Сәлеметсіз бе деген не?", options: ["Привет", "Сәлеметсіз бе", "До свидания"], correct: 1},
+                {id: 2, text: "Рахметтің жауабы не?", options: ["Арзымас", "Рахмет", "Қош бол"], correct: 0}
+            ];
+
+            let html = '';
+            questions.forEach(q => {
+                html += `<div class="question">
+                    <p><strong>${q.text}</strong></p>`;
+                q.options.forEach((opt, idx) => {
+                    html += `<label class="option">
+                        <input type="radio" name="q${q.id}" value="${idx}">
+                        ${opt}
+                    </label>`;
+                });
+                html += `</div>`;
+            });
+            document.getElementById('questions').innerHTML = html;
+            document.getElementById('test').style.display = 'block';
+        }
+
+        function submitTest() {
+            let score = 0;
+            const questions = document.querySelectorAll('.question');
+            questions.forEach(q => {
+                const selected = q.querySelector('input[type="radio"]:checked');
+                if (selected && parseInt(selected.value) === 1) score++; // пример
+            });
+
+            const result = document.getElementById('result');
+            result.innerHTML = `<p style="color:green">Дұрыс жауаптар: ${score}/2</p>
+                                <p>Сіз +${score * 10} балл алдыңыз! 🏆</p>`;
+        }
+
+        loadLesson();
+    </script>
+</body>
+</html> 
