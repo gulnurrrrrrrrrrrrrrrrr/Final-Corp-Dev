@@ -7,56 +7,58 @@ import (
 
 	"quadlingo/internal/middleware"
 	"quadlingo/internal/models"
-	"quadlingo/internal/services"
+	"quadlingo/internal/repository"
 
 	"github.com/gorilla/mux"
 )
 
-func CreateLessonHandler(w http.ResponseWriter, r *http.Request) {
-	user := middleware.GetCurrentUser(r)
-	if user.Role != models.RoleManager && user.Role != models.RoleAdmin {
-		http.Error(w, `{"error": "Only manager or admin can create lessons"}`, http.StatusForbidden)
+func GetAllLessonsHandler(w http.ResponseWriter, r *http.Request) {
+	lessons, err := repository.GetAllLessons()
+	if err != nil {
+		http.Error(w, "Ошибка загрузки уроков", http.StatusInternalServerError)
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(lessons) // Возвращаем []models.Lesson
+}
+
+func GetLessonHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "Неверный ID урока", http.StatusBadRequest)
+		return
+	}
+
+	lesson, err := repository.GetLessonByID(id)
+	if err != nil {
+		http.Error(w, "Урок не найден", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(lesson)
+}
+
+func CreateLessonHandler(w http.ResponseWriter, r *http.Request) {
 	var lesson models.Lesson
 	if err := json.NewDecoder(r.Body).Decode(&lesson); err != nil {
-		http.Error(w, `{"error": "Invalid request"}`, http.StatusBadRequest)
+		http.Error(w, "Неверный формат данных", http.StatusBadRequest)
 		return
 	}
 
-	created, err := services.CreateLesson(lesson, user.ID)
-	if err != nil {
-		http.Error(w, `{"error": "Failed to create lesson"}`, http.StatusInternalServerError)
+	// Получаем ID менеджера из токена
+	currentUser := middleware.GetCurrentUser(r)
+	lesson.CreatedBy = currentUser.ID
+
+	if err := repository.CreateLesson(&lesson); err != nil {
+		http.Error(w, "Ошибка создания урока", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(created)
-}
-
-func GetAllLessonsHandler(w http.ResponseWriter, r *http.Request) {
-	lessons, err := services.GetAllLessons()
-	if err != nil {
-		http.Error(w, `{"error": "Failed to get lessons"}`, http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(lessons)
-}
-
-func GetLessonHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id, _ := strconv.Atoi(vars["id"])
-
-	lesson, err := services.GetLessonByID(id)
-	if err != nil {
-		http.Error(w, `{"error": "Lesson not found"}`, http.StatusNotFound)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(lesson)
 }

@@ -11,6 +11,7 @@
         <nav id="nav" style="display:none">
             <a href="index.html">Басты бет</a>
             <a href="profile.html">Профиль</a>
+            <a href="manager.html" id="managerLink" style="display:none">Менеджер панелі</a>
             <a href="admin.html" id="adminLink" style="display:none">Админ панель</a>
             <button onclick="logout()">Шығу</button>
         </nav>
@@ -88,20 +89,35 @@
         }
 
         async function loadProfile() {
-            try {
-                const res = await fetch(API + '/api/profile', {
-                    headers: {Authorization: `Bearer ${token}`}
-                });
-                const data = await res.json();
-                document.getElementById('userName').textContent = data.user.username;
-                document.getElementById('userRole').textContent = data.user.role;
-                if (data.user.role === 'admin') {
-                    document.getElementById('adminLink').style.display = 'inline';
-                }
-            } catch (err) {
-                logout();
-            }
+    try {
+        const res = await fetch(API + '/api/profile', {
+            headers: {Authorization: `Bearer ${token}`}
+        });
+        if (!res.ok) throw new Error();
+
+        const data = await res.json();
+        const role = data.user.role;
+
+        document.getElementById('userName').textContent = data.user.username;
+        document.getElementById('userRole').textContent = role;
+
+        // Показываем нужные ссылки
+        if (role === 'admin') {
+            document.getElementById('adminLink').style.display = 'inline';
         }
+        if (role === 'manager') {
+            document.getElementById('managerLink').style.display = 'inline';
+        }
+
+        // Если это менеджер — сразу перенаправляем на его панель
+        if (role === 'manager') {
+            window.location.href = 'manager.html';
+        }
+
+    } catch (err) {
+        logout();
+    }
+}
 
         async function loadLessons() {
             const res = await fetch(API + '/lessons');

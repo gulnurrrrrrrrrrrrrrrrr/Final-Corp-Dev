@@ -19,11 +19,13 @@ func GetAllUsers() ([]models.User, error) {
 	for rows.Next() {
 		var u models.User
 		var roleStr string
-		err := rows.Scan(&u.ID, &u.Username, &u.Email, &roleStr, &u.Points, &u.IsActive)
+		var isActive bool
+		err := rows.Scan(&u.ID, &u.Username, &u.Email, &roleStr, &u.Points, &isActive)
 		if err != nil {
 			return nil, err
 		}
 		u.Role = models.Role(roleStr)
+		u.IsActive = isActive
 		users = append(users, u)
 	}
 	return users, nil

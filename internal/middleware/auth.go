@@ -55,21 +55,35 @@ func GetCurrentUser(r *http.Request) models.User {
 	return models.User{}
 }
 
-func RequireRole(required ...models.Role) func(http.Handler) http.Handler {
+func RequireRole(required ...string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			user := GetCurrentUser(r)
-			allowed := false
-			for _, r := range required {
-				if user.Role == r || user.Role == models.RoleAdmin {
-					allowed = true
+			if user.ID == 0 {
+				http.Error(w, `{"error": "Авторизация қажет"}`, http.StatusUnauthorized)
+				return
+			}
+
+			userRole := string(user.Role) // Преобразуем в string
+
+			isAllowed := false
+			for _, role := range required {
+				if userRole == role {
+					isAllowed = true
 					break
 				}
 			}
-			if !allowed {
-				http.Error(w, `{"error": "Недостаточно прав"}`, http.StatusForbidden)
+
+			// Админ имеет доступ ко всему
+			if userRole == "admin" {
+				isAllowed = true
+			}
+
+			if !isAllowed {
+				http.Error(w, `{"error": "Рұқсат жоқ! Қажетті рөл: ${string.Join(required, ", ")}"}`, http.StatusForbidden)
 				return
 			}
+
 			next.ServeHTTP(w, r)
 		})
 	}

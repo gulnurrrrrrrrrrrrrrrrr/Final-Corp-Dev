@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -15,13 +16,14 @@ import (
 func GetAllUsersHandler(w http.ResponseWriter, r *http.Request) {
 	currentUser := middleware.GetCurrentUser(r)
 	if currentUser.Role != models.RoleAdmin {
-		http.Error(w, `{"error": "Только админ может видеть пользователей"}`, http.StatusForbidden)
+		http.Error(w, `{"error": "Рұқсат жоқ! Тек админ кіре алады."}`, http.StatusForbidden)
 		return
 	}
 
 	users, err := repository.GetAllUsers()
 	if err != nil {
-		http.Error(w, `{"error": "Ошибка получения пользователей"}`, http.StatusInternalServerError)
+		log.Printf("Ошибка получения пользователей: %v", err)
+		http.Error(w, `{"error": "Сервер қатесі"}`, http.StatusInternalServerError)
 		return
 	}
 
@@ -33,7 +35,7 @@ func GetAllUsersHandler(w http.ResponseWriter, r *http.Request) {
 			Email:    u.Email,
 			Role:     string(u.Role),
 			Points:   u.Points,
-			IsActive: true,
+			IsActive: u.IsActive,
 		}
 	}
 

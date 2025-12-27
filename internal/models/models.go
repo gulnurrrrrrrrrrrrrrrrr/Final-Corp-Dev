@@ -51,7 +51,7 @@ type Lesson struct {
 type Test struct {
 	ID       int    `json:"id" db:"id"`
 	LessonID int    `json:"lesson_id" db:"lesson_id"`
-	Title    string `json:"title" db:"title"`
+	Title    string `json:"title" db:"title"` // ← ЭТА СТРОКА ДОЛЖНА БЫТЬ!
 }
 
 type Question struct {
@@ -59,7 +59,7 @@ type Question struct {
 	TestID        int      `json:"test_id" db:"test_id"`
 	QuestionText  string   `json:"question_text" db:"question_text"`
 	Options       []string `json:"options" db:"options"`
-	CorrectAnswer int      `json:"correct_answer" db:"correct_answer"`
+	CorrectAnswer int      `json:"correct_answer" db:"correct_answer"` // индекс правильного ответа (0-3)
 }
 
 type TestSubmission struct {

@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+    <meta charset="UTF-8">
+    <title>Менеджер панелі — QuadLingo</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>Менеджер панелі</h1>
+        <nav>
+            <a href="index.html">← Басты бет</a>
+            <a href="profile.html">Профиль</a>
+            <button onclick="logout()">Шығу</button>
+        </nav>
+    </header>
+
+    <div class="container">
+        <div class="card">
+            <h2 style="color:#333; text-align:center">Сабақтарды басқару</h2>
+
+            <div style="text-align:center; margin:30px 0">
+                <button class="manager" onclick="showAddLessonForm()">Жаңа сабақ қосу</button>
+            </div>
+
+            <!-- Форма создания урока -->
+            <div id="addLessonForm" style="display:none; background:#f8f9fa; padding:25px; border-radius:12px; margin:20px 0">
+                <h3 style="color:#333; margin-bottom:20px">Жаңа сабақ қосу</h3>
+                <input id="lessonTitle" placeholder="Сабақ атауы (міндетті)" required style="margin-bottom:10px">
+                <input id="lessonDesc" placeholder="Қысқаша сипаттама (қосымша)">
+                <textarea id="lessonContent" placeholder="Сабақ мазмұны (толық мәтін, міндетті)" rows="12" required style="width:100%; padding:12px; margin:10px 0; border-radius:8px; border:1px solid #ccc"></textarea>
+                <input id="lessonOrder" type="number" placeholder="Рет нөмірі (мысалы: 1)" value="1" style="margin-top:10px">
+                
+                <div style="text-align:center; margin-top:20px">
+                    <button class="manager" onclick="createLesson()">Сабақты сақтау</button>
+                    <button onclick="hideAddLessonForm()" style="background:#95a5a6; margin-left:10px">Бас тарту</button>
+                </div>
+                <p id="lessonMsg" style="text-align:center; margin-top:15px; font-weight:bold"></p>
+            </div>
+
+            <!-- Список уроков -->
+            <h3 style="color:#333; margin-top:40px">Қосылған сабақтар</h3>
+            <div id="lessonsList" class="cards"></div>
+            <p id="noLessons" style="text-align:center; color:#666; font-style:italic; display:none">
+                Әзірге сабақтар жоқ. Жоғарыдағы кнопкамен жаңасын қосыңыз!
+            </p>
+        </div>
+    </div>
+
+    <script>
+        const API = 'http://localhost:8080';
+        let token = localStorage.getItem('token');
+
+        if (!token) {
+            alert('Авторизация қажет!');
+            window.location.href = 'index.html';
+        }
+
+        fetch(API + '/api/profile', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.user.role !== 'manager') {
+                alert('Рұқсат жоқ! Бұл бет тек менеджерлерге арналған.');
+                window.location.href = 'index.html';
+            }
+            loadMyLessons();
+        })
+        .catch(() => {
+            localStorage.removeItem('token');
+            window.location.href = 'index.html';
+        });
+
+        async function loadMyLessons() {
+            try {
+                const res = await fetch(API + '/lessons', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const lessons = await res.json();
+
+                const container = document.getElementById('lessonsList');
+                const noLessons = document.getElementById('noLessons');
+
+                if (lessons.length === 0) {
+                    noLessons.style.display = 'block';
+                    container.innerHTML = '';
+                    return;
+                }
+
+                noLessons.style.display = 'none';
+                container.innerHTML = lessons.map(l => `
+                    <div class="card">
+                        <h3>${l.title}</h3>
+                        <p><strong>Сипаттама:</strong> ${l.description || 'Жоқ'}</p>
+                        <p><strong>Рет:</strong> ${l.order}</p>
+                        <p><strong>Қосылған:</strong> ${new Date(l.created_at).toLocaleDateString('kk-KZ')}</p>
+                        <div style="background:#f8f9fa; padding:20px; border-radius:8px; margin-top:15px; line-height:1.8">
+                            ${l.content.replace(/\n/g, '<br>')}
+                        </div>
+                        <button class="manager" onclick="showTestForm(${l.id}, '${l.title.replace(/'/g, "\\'")}')" style="margin-top:15px">
+                            Жаңа тест қосу
+                        </button>
+                    </div>
+                `).join('');
+            } catch (err) {
+                alert('Сабақтарды жүктеу қатесі');
+                console.error(err);
+            }
+        }
+
+        function showTestForm(lessonId, lessonTitle) {
+            const questionsCount = prompt(`"${lessonTitle}" сабағына неше сұрақ қосасыз? (мысалы: 5)`, '5');
+            if (!questionsCount || isNaN(questionsCount) || questionsCount < 1) return;
+
+            let formHTML = `
+                <div id="testForm-${lessonId}" style="background:#e8f5e8; padding:25px; border-radius:12px; margin:30px 0; border:2px solid #27ae60">
+                    <h3 style="color:#27ae60; text-align:center">Тест қосу: "${lessonTitle}"</h3>
+                    <p style="text-align:center">Сұрақтар саны: ${questionsCount}</p>
+            `;
+
+            for (let i = 1; i <= questionsCount; i++) {
+                formHTML += `
+                    <div class="question" style="background:white; padding:20px; margin:15px 0; border-radius:10px; border:1px solid #ccc">
+                        <p><strong>${i}. Сұрақ мәтіні:</strong></p>
+                        <input type="text" id="q${lessonId}_${i}_text" placeholder="Сұрақ (мысалы: Сәлеметсіз бе деген не?)" style="width:100%; margin-bottom:10px">
+                        
+                        <p><strong>Варианттар:</strong></p>
+                        <input type="text" id="q${lessonId}_${i}_opt1" placeholder="1-вариант" style="margin-bottom:5px">
+                        <input type="text" id="q${lessonId}_${i}_opt2" placeholder="2-вариант" style="margin-bottom:5px">
+                        <input type="text" id="q${lessonId}_${i}_opt3" placeholder="3-вариант" style="margin-bottom:5px">
+                        <input type="text" id="q${lessonId}_${i}_opt4" placeholder="4-вариант" style="margin-bottom:10px">
+                        
+                        <p><strong>Дұрыс жауап нөмірі:</strong></p>
+                        <select id="q${lessonId}_${i}_correct">
+                            <option value="0">1</option>
+                            <option value="1">2</option>
+                            <option value="2">3</option>
+                            <option value="3">4</option>
+                        </select>
+                    </div>
+                `;
+            }
+
+            formHTML += `
+                <div style="text-align:center; margin-top:20px">
+                    <button class="manager" onclick="submitTest(${lessonId}, ${questionsCount})">Тестті сақтау</button>
+                    <button onclick="document.getElementById('testForm-${lessonId}').remove()" style="background:#e74c3c; margin-left:10px">Бас тарту</button>
+                </div>
+                <p id="testMsg-${lessonId}" style="text-align:center; margin-top:15px; font-weight:bold"></p>
+            </div>
+            `;
+
+            // Вставляем форму после карточки урока
+            const lessonCard = document.querySelector(`#lessonsList .card:last-child`);
+            if (lessonCard) {
+                lessonCard.insertAdjacentHTML('afterend', formHTML);
+            } else {
+                document.getElementById('lessonsList').insertAdjacentHTML('beforeend', formHTML);
+            }
+        }
+
+        async function submitTest(lessonId, questionsCount) {
+    const questions = [];
+
+    for (let i = 1; i <= questionsCount; i++) {
+        const text = document.getElementById(`q${lessonId}_${i}_text`).value.trim();
+        const opts = [
+            document.getElementById(`q${lessonId}_${i}_opt1`).value.trim(),
+            document.getElementById(`q${lessonId}_${i}_opt2`).value.trim(),
+            document.getElementById(`q${lessonId}_${i}_opt3`).value.trim(),
+            document.getElementById(`q${lessonId}_${i}_opt4`).value.trim()
+        ];
+        const correct = parseInt(document.getElementById(`q${lessonId}_${i}_correct`).value);
+
+        if (!text || opts.some(o => o === '')) {
+            alert(`Барлық өрістерді толтырыңыз! Сұрақ ${i}`);
+            return;
+        }
+
+        questions.push({
+            question_text: text,
+            options: opts,
+            correct_answer: correct
+        });
+    }
+
+    try {
+        const res = await fetch(API + '/api/tests', {  // ← ОСЫ ЖЕРДІ ӨЗГЕРТТІК!
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                lesson_id: lessonId,
+                questions: questions
+            })
+        });
+
+        const msg = document.getElementById(`testMsg-${lessonId}`);
+        if (res.ok) {
+            const result = await res.json();
+            msg.textContent = 'Тест сәтті қосылды! 🎉';
+            msg.style.color = 'green';
+            loadMyLessons(); // Жаңарту
+        } else {
+            const error = await res.text();
+            msg.textContent = 'Қате: ' + error;
+            msg.style.color = 'red';
+        }
+    } catch (err) {
+        alert('Сервермен байланыс қатесі');
+        console.error(err);
+    }
+}
+
+        // Остальные функции (showAddLessonForm, createLesson, logout) остаются такими же, как в предыдущем коде
+
+        function showAddLessonForm() {
+            document.getElementById('addLessonForm').style.display = 'block';
+            document.getElementById('lessonMsg').textContent = '';
+        }
+
+        function hideAddLessonForm() {
+            document.getElementById('addLessonForm').style.display = 'none';
+            document.getElementById('lessonTitle').value = '';
+            document.getElementById('lessonDesc').value = '';
+            document.getElementById('lessonContent').value = '';
+            document.getElementById('lessonOrder').value = '1';
+        }
+
+        async function createLesson() {
+            const title = document.getElementById('lessonTitle').value.trim();
+            const description = document.getElementById('lessonDesc').value.trim();
+            const content = document.getElementById('lessonContent').value.trim();
+            const order = parseInt(document.getElementById('lessonOrder').value) || 1;
+
+            const msg = document.getElementById('lessonMsg');
+
+            if (!title || !content) {
+                msg.textContent = 'Атау мен мазмұн міндетті!';
+                msg.style.color = 'red';
+                return;
+            }
+
+            try {
+                const res = await fetch(API + '/api/lessons', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({title, description, content, order})
+                });
+
+                if (res.ok) {
+                    msg.textContent = 'Сабақ сәтті қосылды! 🎉';
+                    msg.style.color = 'green';
+                    hideAddLessonForm();
+                    loadMyLessons();
+                } else {
+                    const error = await res.text();
+                    msg.textContent = 'Қате: ' + error;
+                    msg.style.color = 'red';
+                }
+            } catch (err) {
+                msg.textContent = 'Сервер қатесі';
+                msg.style.color = 'red';
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            window.location.href = 'index.html';
+        }
+
+        loadMyLessons();
+    </script>
+</body>
+</html>

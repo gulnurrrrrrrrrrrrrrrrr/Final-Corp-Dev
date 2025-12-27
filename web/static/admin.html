@@ -10,16 +10,18 @@
         <h1>Админ панель</h1>
         <nav>
             <a href="index.html">← Басты бет</a>
-            <button onclick="localStorage.removeItem('token'); window.location='index.html'">Шығу</button>
+            <a href="profile.html">Профиль</a>
+            <button onclick="logout()">Шығу</button>
         </nav>
     </header>
 
     <div class="container">
         <div class="card">
-            <h2 style="color:#333">Пользовательлер тізімі</h2>
+            <h2 style="color:#333; text-align:center">Пользовательлер тізімі</h2>
+            <p id="loading" style="text-align:center; color:#666; font-style:italic">Жүктелуде...</p>
+            <p id="error" style="color:red; text-align:center; font-weight:bold; display:none"></p>
+
             <div id="users" class="cards"></div>
-            <p id="error" style="color:red; text-align:center; font-weight:bold; margin-top:20px"></p>
-            <p id="loading" style="text-align:center; color:#666">Жүктелуде...</p>
         </div>
     </div>
 
@@ -27,6 +29,7 @@
         const API = 'http://localhost:8080';
         const token = localStorage.getItem('token');
 
+        // Если нет токена — отправляем на главную
         if (!token) {
             window.location.href = 'index.html';
         }
@@ -39,16 +42,18 @@
             try {
                 const res = await fetch(API + '/admin/users', {
                     headers: {
-                        'Authorization': `Bearer ${token}`
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
                     }
                 });
 
                 if (!res.ok) {
                     if (res.status === 403 || res.status === 401) {
-                        errorEl.textContent = 'Рұқсат жоқ! Сіз админ емессіз немесе токен ескірген.';
+                        errorEl.textContent = 'Рұқсат жоқ! Тек админ кіре алады.';
                     } else {
                         errorEl.textContent = `Сервер қатесі: ${res.status}`;
                     }
+                    errorEl.style.display = 'block';
                     loading.style.display = 'none';
                     return;
                 }
@@ -61,34 +66,50 @@
                     return;
                 }
 
-                usersContainer.innerHTML = users.map(u => `
+                usersContainer.innerHTML = users.map(user => `
                     <div class="card">
-                        <h3>${u.username}</h3>
-                        <p><strong>Email:</strong> ${u.email}</p>
-                        <p><strong>Рөл:</strong> <span style="color:#e74c3c;font-weight:bold">${u.role === 'admin' ? 'Админ' : u.role === 'manager' ? 'Менеджер' : 'Оқушы'}</span></p>
-                        <p><strong>Баллдар:</strong> ${u.points} 🏆</p>
-                        <div style="margin-top:15px">
-                            <select id="role-${u.id}" ${u.role === 'admin' ? 'disabled' : ''}>
-                                <option value="user" ${u.role === 'user' ? 'selected' : ''}>user</option>
-                                <option value="manager" ${u.role === 'manager' ? 'selected' : ''}>manager</option>
-                            </select>
-                            <button ${u.role === 'admin' ? 'disabled' : ''} onclick="changeRole(${u.id})" style="margin-left:10px">
-                                Рөлді өзгерту
-                            </button>
-                        </div>
+                        <h3>${user.username}</h3>
+                        <p><strong>Email:</strong> ${user.email}</p>
+                        <p><strong>Қазіргі рөл:</strong> 
+                            <span style="padding:5px 10px; border-radius:5px; color:white; background:${user.role === 'admin' ? '#e74c3c' : user.role === 'manager' ? '#27ae60' : '#3498db'}">
+                                ${user.role === 'admin' ? 'Админ' : user.role === 'manager' ? 'Менеджер' : 'Оқушы'}
+                            </span>
+                        </p>
+                        <p><strong>Баллдар:</strong> ${user.points} 🏆</p>
+
+                        ${user.role === 'admin' ? 
+                            '<p style="color:#e74c3c; font-style:italic">Админ рөлін өзгерту мүмкін емес</p>' :
+                            `
+                            <div style="margin-top:15px">
+                                <label><strong>Жаңа рөл:</strong></label><br>
+                                <select id="role-select-${user.id}">
+                                    <option value="user" ${user.role === 'user' ? 'selected' : ''}>Оқушы (user)</option>
+                                    <option value="manager" ${user.role === 'manager' ? 'selected' : ''}>Менеджер</option>
+                                </select>
+                                <button class="manager" onclick="changeRole(${user.id})" style="margin-left:10px">
+                                    Рөлді өзгерту
+                                </button>
+                            </div>
+                            `
+                        }
                     </div>
                 `).join('');
 
             } catch (err) {
                 loading.style.display = 'none';
-                errorEl.textContent = 'Серверге қосылу қатесі. API жұмыс істеп тұр ма?';
-                console.error(err);
+                errorEl.textContent = 'Серверге қосылу қатесі. Docker іске қосылған ба?';
+                errorEl.style.display = 'block';
+                console.error('Load users error:', err);
             }
         }
 
         async function changeRole(userId) {
-            const select = document.getElementById(`role-${userId}`);
+            const select = document.getElementById(`role-select-${userId}`);
             const newRole = select.value;
+
+            if (!confirm(`Рөлді ${newRole === 'manager' ? 'Менеджер' : 'Оқушы'} етіп өзгерту керек пе?`)) {
+                return;
+            }
 
             try {
                 const res = await fetch(API + `/admin/users/${userId}/role`, {
@@ -101,16 +122,24 @@
                 });
 
                 if (res.ok) {
-                    alert('Рөл сәтті өзгертілді!');
-                    loadUsers(); // обновляем список
+                    alert('✅ Рөл сәтті өзгертілді!');
+                    loadUsers(); // Обновляем список
                 } else {
-                    alert('Қате: рөлді өзгерту мүмкін емес');
+                    const errorText = await res.text();
+                    alert('❌ Қате: ' + errorText);
                 }
             } catch (err) {
                 alert('Сервер қатесі');
+                console.error(err);
             }
         }
 
+        function logout() {
+            localStorage.removeItem('token');
+            window.location.href = 'index.html';
+        }
+
+        // Загружаем пользователей при открытии страницы
         loadUsers();
     </script>
 </body>

@@ -54,14 +54,13 @@ func main() {
 
 	// Передаём логгер в middleware
 	middleware.InitLogger(zapLogger)
-
 	// Роутер
 	r := mux.NewRouter()
 
 	// Prometheus метрики
 	r.Handle("/metrics", promhttp.Handler())
 
-	// Security Headers (unrolled/secure)
+	// Security Headers
 	secureMiddleware := secure.New(secure.Options{
 		FrameDeny:             true,
 		ContentTypeNosniff:    true,
@@ -72,12 +71,9 @@ func main() {
 		STSIncludeSubdomains:  true,
 	})
 
-	// CSRF защита (используем JWT secret как ключ)
-	//csrfMiddleware := csrf.Protect([]byte(cfg.JWTSecret), csrf.Secure(false)) // false для разработки (HTTP)
-
 	// Глобальные middleware
 	r.Use(middleware.SecurityHeaders)
-	r.Use(middleware.LoggingMiddleware) // теперь правильный тип
+	r.Use(middleware.LoggingMiddleware)
 	r.Use(secureMiddleware.Handler)
 
 	// Главная страница
@@ -93,17 +89,32 @@ func main() {
 	r.HandleFunc("/lessons", handlers.GetAllLessonsHandler).Methods("GET")
 	r.HandleFunc("/lessons/{id}", handlers.GetLessonHandler).Methods("GET")
 
-	// Защищённые маршруты
+	// Защищённые маршруты — требуют авторизации
 	protected := r.PathPrefix("/api").Subrouter()
 	protected.Use(middleware.AuthMiddleware)
 
-	// Профиль
+	// Профиль пользователя
 	protected.HandleFunc("/profile", handlers.ProfileHandler).Methods("GET")
 
-	// Создание уроков — только manager и admin
-	managerAdmin := protected.PathPrefix("/lessons").Subrouter()
-	managerAdmin.Use(middleware.RequireRole("manager", "admin"))
-	managerAdmin.HandleFunc("", handlers.CreateLessonHandler).Methods("POST")
+	// === МАРШРУТЫ ТОЛЬКО ДЛЯ МЕНЕДЖЕРА ===
+	managerRouter := protected.PathPrefix("").Subrouter() // пустой префикс — действует на все маршруты ниже
+	managerRouter.Use(middleware.RequireRole("manager"))
+
+	// Создание урока — только менеджер
+	managerRouter.HandleFunc("/lessons", handlers.CreateLessonHandler).Methods("POST")
+
+	// Создание теста — только менеджер (теперь с middleware проверки роли)
+	managerRouter.HandleFunc("/tests", handlers.CreateTestHandler).Methods("POST")
+
+	// Если в будущем добавишь ещё менеджерские endpoints — добавляй их сюда
+
+	// === АДМИНСКИЕ МАРШРУТЫ ===
+	adminRouter := r.PathPrefix("/admin").Subrouter()
+	adminRouter.Use(middleware.AuthMiddleware)
+	adminRouter.Use(middleware.RequireRole("admin"))
+
+	adminRouter.HandleFunc("/users", handlers.GetAllUsersHandler).Methods("GET")
+	adminRouter.HandleFunc("/users/{id}/role", handlers.ChangeUserRoleHandler).Methods("PATCH")
 
 	// Статический фронтенд
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./web/static/"))))
@@ -113,13 +124,6 @@ func main() {
 	if port == "" {
 		port = "8080"
 	}
-	// Админские маршруты
-	adminRouter := r.PathPrefix("/admin").Subrouter()
-	adminRouter.Use(middleware.AuthMiddleware)
-	adminRouter.Use(middleware.RequireRole("admin"))
-
-	adminRouter.HandleFunc("/users", handlers.GetAllUsersHandler).Methods("GET")
-	adminRouter.HandleFunc("/users/{id}/role", handlers.ChangeUserRoleHandler).Methods("PATCH")
 
 	log.Printf("🚀 QuadLingo сервер запущен на http://localhost:%s", port)
 	log.Printf("   Фронтенд: http://localhost:%s/static/index.html", port)

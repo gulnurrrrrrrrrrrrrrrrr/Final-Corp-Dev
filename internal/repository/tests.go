@@ -7,6 +7,33 @@ import (
 	"quadlingo/internal/models"
 )
 
+func CreateTestForLesson(lessonID int, questions []struct {
+	QuestionText  string   `json:"question_text"`
+	Options       []string `json:"options"`
+	CorrectAnswer int      `json:"correct_answer"`
+}) error {
+	// Создаём тест
+	var testID int
+	err := DB.QueryRow(context.Background(), `INSERT INTO tests (lesson_id) VALUES ($1) RETURNING id`, lessonID).Scan(&testID)
+	if err != nil {
+		return err
+	}
+
+	// Создаём вопросы
+	for _, q := range questions {
+		optionsJSON, _ := json.Marshal(q.Options)
+		_, err := DB.Exec(context.Background(), `
+			INSERT INTO questions (test_id, question_text, options, correct_answer)
+			VALUES ($1, $2, $3, $4)
+		`, testID, q.QuestionText, optionsJSON, q.CorrectAnswer)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func CreateTest(test *models.Test) error {
 	query := `INSERT INTO tests (lesson_id, title) VALUES ($1, $2) RETURNING id`
 	return DB.QueryRow(context.Background(), query, test.LessonID, test.Title).Scan(&test.ID)
